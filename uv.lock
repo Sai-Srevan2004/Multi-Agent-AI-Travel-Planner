@@ -216,6 +216,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "airportsdata" },
+    { name = "certifi" },
     { name = "fastapi" },
     { name = "langchain" },
     { name = "langchain-community" },
@@ -232,6 +233,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "airportsdata", specifier = ">=20260905" },
+    { name = "certifi", specifier = ">=2026.7.22" },
     { name = "fastapi", specifier = ">=0.143.0" },
     { name = "langchain", specifier = ">=1.4.4" },
     { name = "langchain-community", specifier = ">=0.4.2" },
