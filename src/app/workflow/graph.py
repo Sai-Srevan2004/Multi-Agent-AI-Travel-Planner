@@ -1,19 +1,20 @@
-
 """
 graph.py — Builds and compiles the graph, and exposes run_travel_agent() for FastAPI.
 """
-
 import uuid
 
 from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.mysql.aio import AIOMySQLSaver
 from langchain_core.messages import HumanMessage
 
 from app.workflow.state import TravelState
-from app.workflow.nodes import flight_node
-from app.workflow.nodes import hotel_node
-from app.workflow.nodes import itinerary_node
-from app.workflow.nodes import final_node
-from app.db import get_checkpointer
+from app.workflow.nodes import (
+    flight_node,
+    hotel_node,
+    itinerary_node,
+    final_node,
+)
+from app.db import create_pool
 
 
 # =========================
@@ -26,7 +27,7 @@ graph.add_node("flight_agent", flight_node)
 graph.add_node("hotel_agent", hotel_node)
 graph.add_node("itinerary_agent", itinerary_node)
 graph.add_node("final_agent", final_node)
- 
+
 graph.add_edge(START, "flight_agent")
 graph.add_edge("flight_agent", "hotel_agent")
 graph.add_edge("hotel_agent", "itinerary_agent")
@@ -35,19 +36,22 @@ graph.add_edge("final_agent", END)
 
 
 # =========================
-# Database Checkpointer
+# Compile (async; state is saved to MySQL through a connection pool)
 # =========================
 
-checkpointer = get_checkpointer()
-
-travel_graph = graph.compile(checkpointer=checkpointer)
+async def init_graph():
+    """Call once at app startup. Returns (compiled_graph, pool). Close the pool on shutdown."""
+    pool = await create_pool()
+    checkpointer = AIOMySQLSaver(pool)
+    await checkpointer.setup()  # creates the checkpoint tables if they don't exist
+    return graph.compile(checkpointer=checkpointer), pool
 
 
 # =========================
-# Run Travel Agent
+# Function for FastAPI
 # =========================
 
-def run_travel_agent(user_input: str, thread_id: str | None = None):
+async def run_travel_agent(travel_graph, user_input: str, thread_id: str | None = None):
     if not thread_id:
         thread_id = f"user_{uuid.uuid4().hex}"
 
@@ -57,7 +61,7 @@ def run_travel_agent(user_input: str, thread_id: str | None = None):
         }
     }
 
-    result = travel_graph.invoke(
+    result = await travel_graph.ainvoke(
         {
             "messages": [
                 HumanMessage(content=user_input)

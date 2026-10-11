@@ -1,5 +1,5 @@
 """
-db.py — Local MySQL connection and the LangGraph checkpointer.
+db.py — Async MySQL connection pool (used by the LangGraph checkpointer).
 
 .env:
     MYSQL_HOST=localhost
@@ -10,26 +10,21 @@ db.py — Local MySQL connection and the LangGraph checkpointer.
 """
 import os
 
-import pymysql
+import aiomysql
 from dotenv import load_dotenv
-from langgraph.checkpoint.mysql.pymysql import PyMySQLSaver
 
 load_dotenv()
 
 
-def get_mysql_connection():
-    return pymysql.connect(
+async def create_pool() -> aiomysql.Pool:
+    return await aiomysql.create_pool(
         host=os.getenv("MYSQL_HOST", "localhost"),
         port=int(os.getenv("MYSQL_PORT", "3306")),
         user=os.getenv("MYSQL_USER", "root"),
         password=os.getenv("MYSQL_PASSWORD", ""),
-        database=os.getenv("MYSQL_DATABASE", "travel_planner"),
+        db=os.getenv("MYSQL_DATABASE", "travel_planner"),
         charset="utf8mb4",
         autocommit=True,  # required by the checkpointer
+        minsize=1,
+        maxsize=10,       # up to 10 requests can use MySQL at the same time
     )
-
-
-def get_checkpointer() -> PyMySQLSaver:
-    checkpointer = PyMySQLSaver(get_mysql_connection())
-    checkpointer.setup()  # creates the checkpoint tables if they don't exist
-    return checkpointer
